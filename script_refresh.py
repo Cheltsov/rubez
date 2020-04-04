@@ -90,7 +90,6 @@ def create_last_index(max_id_skpdi, max_id_stat):
     now = datetime.now()
     last_id = AllDtpLastIndex.objects.create(update_time_field=now, skpdi_id=max_id_skpdi, stat_gibdd_id=max_id_stat)
     last_id.save()
-    return True
 
 
 # Функция очиски массивов от лишних элементов
