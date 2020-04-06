@@ -3,6 +3,8 @@ from . import views
 
 urlpatterns = [
     path('', views.index, name='index'),
-    path('check_finish', views.check_finish, name='check_finish'),
-    path('concatination', views.concatination, name='concatination'),
+    path('get_skpdi', views.get_skpdi, name='get_skpdi'),
+    path('get_stat_gipdd', views.get_stat_gipdd, name='get_stat_gipdd'),
+    path('get_collision', views.get_collision, name='get_collision'),
+    path('get_dtp_id', views.get_dtp_id, name='get_dtp_id'),
 ]

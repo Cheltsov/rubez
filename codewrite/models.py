@@ -53,7 +53,7 @@ class MapRoadSection(models.Model):
     car_speed_limit = models.IntegerField(blank=True, null=True)
     truck_speed_limit = models.IntegerField(blank=True, null=True)
     risk_institute_number = models.IntegerField(blank=True, null=True)
-    risk_institute_category = models.CharField(max_length=-1, blank=True, null=True)
+    risk_institute_category = models.CharField(max_length=1, blank=True, null=True)
     risk_institute_traffic_intensity = models.DecimalField(max_digits=65535, decimal_places=65535, blank=True, null=True)
 
     class Meta:
@@ -122,8 +122,8 @@ class SkpdiDtpCard(models.Model):
     lastchanged = models.DateTimeField(blank=True, null=True)
     name = models.CharField(max_length=255, blank=True, null=True)
     skpdi_odh = models.ForeignKey('SkpdiOdh', models.DO_NOTHING, blank=True, null=True)
-    lat = models.CharField(max_length=20, blank=True, null=True)
-    lon = models.CharField(max_length=20, blank=True, null=True)
+    lat = models.FloatField(blank=True, null=True)
+    lon = models.FloatField(blank=True, null=True)
 
     class Meta:
         managed = False
