@@ -309,7 +309,7 @@ def create_json_stat():
             'iconType': icon_type,
         })
     with open('media/json_stat.json', 'w') as outfile:
-        json.dump(list(arr_stat), outfile)
+        json.dump(list(list_stat), outfile)
 
 
 # Создание файла json коллизий SKPDI и STAT_GIPDD
