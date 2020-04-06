@@ -27,6 +27,15 @@ class AllDtpCardHistory(models.Model):
         db_table = 'all_dtp_card_history'
 
 
+class AllDtpCollisionType(models.Model):
+    skpdi_type = models.CharField(max_length=150)
+    stat_type = models.CharField(max_length=150)
+
+    class Meta:
+        managed = False
+        db_table = 'all_dtp_collision_type'
+
+
 class AllDtpLastIndex(models.Model):
     skpdi_id = models.IntegerField(blank=True, null=True)
     stat_gibdd_id = models.IntegerField()
