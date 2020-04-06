@@ -376,8 +376,6 @@ def create_json_col():
 
 # Главная функция скрипта
 if __name__ == '__main__':
-    create_json_col()
-    exit()
     # Фиксация времени начал скрипта
     start_time = time.time()
     # Установка начале очереди
