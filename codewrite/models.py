@@ -9,8 +9,8 @@ from django.db import models
 
 
 class AllDtpCard(models.Model):
-    skpdi_id = models.IntegerField(unique=True, blank=True, null=True)
-    stat_gibdd_id = models.IntegerField(unique=True, blank=True, null=True)
+    skpdi = models.OneToOneField('SkpdiDtpCard', models.DO_NOTHING, blank=True, null=True)
+    stat_gibdd = models.OneToOneField('StatGibddDtpCard', models.DO_NOTHING, blank=True, null=True)
 
     class Meta:
         managed = False
@@ -39,11 +39,51 @@ class AllDtpCollisionType(models.Model):
 class AllDtpLastIndex(models.Model):
     skpdi_id = models.IntegerField(blank=True, null=True)
     stat_gibdd_id = models.IntegerField()
-    update_time_field = models.DateTimeField(db_column='update_time ', blank=True, null=True)  # Field renamed to remove unsuitable characters. Field renamed because it ended with '_'.
+    update_time = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'all_dtp_last_index'
+
+
+class CollisionRange(models.Model):
+    cid_1 = models.IntegerField(blank=True, null=True)
+    cid_2 = models.IntegerField(blank=True, null=True)
+    range = models.IntegerField(blank=True, null=True)
+    cid_skpdi_1 = models.IntegerField(blank=True, null=True)
+    cid_skpdi_2 = models.IntegerField(blank=True, null=True)
+    dtp_year = models.IntegerField(blank=True, null=True)
+    dtp_month = models.IntegerField(blank=True, null=True)
+    dtp_quarter = models.IntegerField(blank=True, null=True)
+    id_collision_1 = models.IntegerField(blank=True, null=True)
+    id_collision_2 = models.IntegerField(blank=True, null=True)
+    icon_type = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'collision_range'
+
+
+class HearthCollision(models.Model):
+    cid = models.ForeignKey(AllDtpCard, models.DO_NOTHING, db_column='cid', blank=True, null=True)
+    hid = models.ForeignKey('HearthDtp', models.DO_NOTHING, db_column='hid', blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_collision'
+
+
+class HearthDtp(models.Model):
+    created = models.DateTimeField(blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    month = models.IntegerField(blank=True, null=True)
+    quarter = models.IntegerField(blank=True, null=True)
+    count_dtp = models.IntegerField(blank=True, null=True)
+    type = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_dtp'
 
 
 class Line(models.Model):

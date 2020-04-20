@@ -7,4 +7,5 @@ urlpatterns = [
     path('get_stat_gipdd', views.get_stat_gipdd, name='get_stat_gipdd'),
     path('get_collision', views.get_collision, name='get_collision'),
     path('get_dtp_id', views.get_dtp_id, name='get_dtp_id'),
+    path('get_hearth', views.get_hearth, name='get_hearth')
 ]
