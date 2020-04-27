@@ -11,6 +11,8 @@ from django.core.serializers import serialize
 
 # Create your views here.
 def index(request):
+    list = []
+    sk = SkpdiDtpCard.objects.all().values()
     context = {
         'list': []
     }

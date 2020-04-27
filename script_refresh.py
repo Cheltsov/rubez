@@ -2,6 +2,7 @@ import math
 import os
 import time
 from datetime import datetime
+from django.utils import timezone
 
 import django
 import json
@@ -11,9 +12,7 @@ django.setup()
 
 from codewrite.models import SkpdiDtpCard, AllDtpCardHistory, AllDtpLastIndex, StatGibddDtpCard, AllDtpCard, \
     AllDtpCollisionType
-from django.db import transaction
-
-from django.db import connection
+from django.db import transaction, connection
 
 
 # Функция создания списка SKPDI и STAT_GIPDD
@@ -69,11 +68,11 @@ def same_date_type(arr_skpdi, arr_stat_gpdd):
                             collision_dtp_array.append({
                                 'skpdi': {
                                     'id': sk.id,
-                                    'type': sk_col_type.skpdi_collision_type.name
+                                    'type': sk_col_type.skpdi_collision_type.name.strip()
                                 },
                                 'stat': {
                                     'id': st.sid,
-                                    'type': st.dtvp
+                                    'type': st.dtvp.strip()
                                 }
                             })
             i += 1
@@ -92,7 +91,7 @@ def check_type(sk_type, st_type):
 
 # Функция создания лога скрипта
 def create_last_index(max_id_skpdi, max_id_stat):
-    now = datetime.now()
+    now = timezone.now()
     last_id = AllDtpLastIndex.objects.create(update_time=now, skpdi_id=max_id_skpdi, stat_gibdd_id=max_id_stat)
     last_id.save()
 
@@ -119,7 +118,7 @@ def delete_same_index(collision_dtp_array, arr_skpdi_list, arr_stat_list):
 # Проверка на одинаковость по координатам
 def check_coords(mylat_skpdi, mylon_skpdi, mylat_stat, mylot_stat):
     if mylat_skpdi and mylon_skpdi and mylat_stat and mylot_stat:
-        dist = 200  # дистанция 200 м
+        dist = 250  # дистанция 200 м
         mylon = float(mylon_skpdi)  # долгота центра
         mylat = float(mylat_skpdi)  # широта
         lon1 = mylon - dist / abs(math.cos(math.radians(mylat)) * 111000)  # 1 градус широты = 111 км
@@ -162,7 +161,7 @@ def create_history():
         last_history = AllDtpCardHistory.objects.latest('id')
         if last_history.finish == 0:
             exit()
-    now = datetime.now()
+    now = timezone.now()
     new_last_history = AllDtpCardHistory.objects.create(start_time=now, finish=0)
     new_last_history.save()
 
@@ -170,7 +169,7 @@ def create_history():
 # Функция обновления записи очереди
 def update_history():
     last_history = AllDtpCardHistory.objects.latest('id')
-    now = datetime.now()
+    now = timezone.now()
     last_history.finish_time = now
     last_history.finish = 1
     last_history.save()
@@ -180,22 +179,23 @@ def update_history():
 def find_icon_type_skpdi(obj_sk):
     icon_type = 0
     dead_type = obj_sk.skpdiuch_set.all().values().first()
-    if dead_type:
+    if dead_type and obj_sk.skpdicollisiontypecollision_set.count() > 0:
         dead_type = dead_type['collision_party_cond_id']
-        collition_type = obj_sk.skpdicollisiontypecollision_set.all().first().skpdi_collision_type.name
+        collition_type = obj_sk.skpdicollisiontypecollision_set.first().skpdi_collision_type.name
         if dead_type == 216599770:
-            icon_type = death_skpdi(collition_type)
-        else:
+            # Если ранен
             icon_type = no_death_skpdi(collition_type)
+        else:
+            icon_type = death_skpdi(collition_type)
     return icon_type
 
 
 # Функиця для поиск IconType STAT_GIPDD
 def find_icon_type_stat(obj_st):
     if obj_st.pog:
-        icon_type = death_stat(obj_st.dtvp)
+        icon_type = death_stat(obj_st.dtvp.strip())
     else:
-        icon_type = no_death_stat(obj_st.dtvp)
+        icon_type = no_death_stat(obj_st.dtvp.strip())
     return icon_type
 
 
@@ -215,7 +215,7 @@ def death_skpdi(collition_type):
         'Наезд на животное': 18,
         'Наезд на гужевой транспорт': 18,
     }
-    return tmp.get(collition_type)
+    return tmp[collition_type]
 
 
 # Функиця создержащая словарь для IconType для SKPDI - ранен
@@ -234,32 +234,11 @@ def no_death_skpdi(collition_type):
         'Наезд на животное': 17,
         'Наезд на гужевой транспорт': 17,
     }
-    return tmp.get(collition_type)
+    return tmp[collition_type]
 
 
 # Функиця создержащая словарь для IconType для STAT_GIPDD - убит
 def death_stat(collition_type):
-    tmp = {
-        'Столкновение': 1,
-        'Опрокидывание': 3,
-        'Наезд на препятствие': 5,
-        'Наезд на велосипедиста': 7,
-        'Падение пассажира': 9,
-        'Съезд с дороги': 11,
-        'Наезд на стоящее ТС': 13,
-        'Наезд на пешехода': 15,
-        'Наезд на лицо, не являющееся участником дорожного движения, осуществляющее какую-либо другую деятельность': 15,
-        'Иной вид ДТП': 17,
-        'Наезд на лицо, не являющееся участником дорожного движения, осуществляющее производство работ': 17,
-        'Падение груза': 17,
-        'Отбрасывание предмета': 17,
-        'Наезд на внезапно возникшее препятствие': 17,
-    }
-    return tmp[collition_type]
-
-
-# Функиця создержащая словарь для IconType для STAT_GIPDD - ранен
-def no_death_stat(collition_type):
     tmp = {
         'Столкновение': 2,
         'Опрокидывание': 4,
@@ -279,19 +258,42 @@ def no_death_stat(collition_type):
     return tmp[collition_type]
 
 
+# Функиця создержащая словарь для IconType для STAT_GIPDD - ранен
+def no_death_stat(collition_type):
+    tmp = {
+        'Столкновение': 1,
+        'Опрокидывание': 3,
+        'Наезд на препятствие': 5,
+        'Наезд на велосипедиста': 7,
+        'Падение пассажира': 9,
+        'Съезд с дороги': 11,
+        'Наезд на стоящее ТС': 13,
+        'Наезд на пешехода': 15,
+        'Наезд на лицо, не являющееся участником дорожного движения, осуществляющее какую-либо другую деятельность': 15,
+        'Иной вид ДТП': 17,
+        'Наезд на лицо, не являющееся участником дорожного движения, осуществляющее производство работ': 17,
+        'Падение груза': 17,
+        'Отбрасывание предмета': 17,
+        'Наезд на внезапно возникшее препятствие': 17,
+    }
+    return tmp[collition_type]
+
+
 # Создание файла json для SKPDI
 def create_json_skpdi():
     list_skpdi = []
     arr_skpdi = SkpdiDtpCard.objects.filter(coordinates__isnull=False, lat__isnull=False, lon__isnull=False)
     for item_sk in arr_skpdi:
         icon_type = find_icon_type_skpdi(item_sk)
-        list_skpdi.append({
-            'id': item_sk.id,
-            'lat': item_sk.lat,
-            'lon': item_sk.lon,
-            'iconType': icon_type,
-            'collision_type': item_sk.skpdicollisiontypecollision_set.all().first().skpdi_collision_type.name
-        })
+        if item_sk.skpdicollisiontypecollision_set.count() > 0:
+            list_skpdi.append({
+                'id': item_sk.id,
+                'lat': item_sk.lat,
+                'lon': item_sk.lon,
+                'iconType': icon_type,
+                'collision_type': item_sk.skpdicollisiontypecollision_set.first().skpdi_collision_type.name,
+                'date': time.mktime(item_sk.collision_date.timetuple())
+            })
     with open('media/json_skpdi.json', 'w') as outfile:
         json.dump(list(list_skpdi), outfile)
 
@@ -307,76 +309,12 @@ def create_json_stat():
             'lat': item_st.lat,
             'lon': item_st.lon,
             'iconType': icon_type,
-            'collision_type': item_st.dtvp
+            'collision_type': item_st.dtvp,
+            'date': time.mktime(item_st.dtp_date.timetuple())
         })
     with open('media/json_stat.json', 'w') as outfile:
         json.dump(list(list_stat), outfile)
 
-
-# Создание файла json коллизий SKPDI и STAT_GIPDD
-def create_json_col():
-    # Получение JSON SKPDI которые не пересекаются
-    list_not_col_skpdi = AllDtpCard.objects.filter(stat_gibdd_id__isnull=True).values_list('skpdi_id', flat=True)
-    json_sk = []
-    for sk in list_not_col_skpdi:
-        tmp_sk = SkpdiDtpCard.objects.filter(id=sk).first()
-        icon_type = find_icon_type_skpdi(tmp_sk)
-        json_sk.append({
-            'id': tmp_sk.id,
-            'lat': tmp_sk.lat,
-            'lon': tmp_sk.lon,
-            'iconType': icon_type,
-            'collision_type': item_sk.skpdicollisiontypecollision_set.all().first().skpdi_collision_type.name
-        })
-
-
-    # Получение JSON STAT_GIPDD которые не пересекаются
-    list_not_col_stat = AllDtpCard.objects.filter(skpdi_id__isnull=True).values_list('stat_gibdd_id', flat=True)
-    json_st = []
-    for st in list_not_col_stat:
-        tmp_st = StatGibddDtpCard.objects.filter(sid=st).first()
-        icon_type = find_icon_type_stat(tmp_st)
-        json_st.append({
-            'id': tmp_st.sid,
-            'lat': tmp_st.lat,
-            'lon': tmp_st.lon,
-            'iconType': icon_type,
-            'collision_type': item_st.dtvp
-        })
-
-    # Получение пересекающихся ДПТ
-    list_col = AllDtpCard.objects.filter(skpdi_id__isnull=False, stat_gibdd_id__isnull=False).values('skpdi_id',
-                                                                                                     'stat_gibdd_id')
-    json_col = []
-    for col in list_col:
-        tmp_sk = SkpdiDtpCard.objects.filter(id=col['skpdi_id']).first()
-        sk_icon_type = find_icon_type_skpdi(tmp_sk)
-        tmp_st = StatGibddDtpCard.objects.filter(sid=col['stat_gibdd_id']).first()
-        st_icon_type = find_icon_type_stat(tmp_st)
-        json_col.append({
-            'skpdi': {
-                'id': tmp_sk.id,
-                'lat': tmp_sk.lat,
-                'lon': tmp_sk.lon,
-                'iconType': sk_icon_type,
-                'collision_type': item_sk.skpdicollisiontypecollision_set.all().first().skpdi_collision_type.name
-            },
-            'stat': {
-                'id': tmp_st.sid,
-                'lat': tmp_st.lat,
-                'lon': tmp_st.lon,
-                'iconType': st_icon_type,
-                'collision_type': item_st.dtvp
-            }
-        })
-
-    all_json = [{
-        'list_skpdi': json_sk,
-        'list_stat': json_st,
-        'list_col': json_col
-    }]
-    with open('media/json_col.json', 'w') as outfile:
-        json.dump(list(all_json), outfile)
 
 
 # Функция создания JSON для третьего слоя карты
@@ -386,40 +324,39 @@ def create_json_col_for_map():
     for col in list_collision:
         if not col['stat_gibdd_id']:
             obj_skpdi = SkpdiDtpCard.objects.filter(id=col['skpdi_id']).first()
-            iconType = find_icon_type_skpdi(obj_skpdi),
-            tmp_item.append({
-                'id_ver': col['id'],
-                'id_stat': '',
-                'id_skpdi': col['skpdi_id'],
-                'iconType': iconType[0],
-                'lat': obj_skpdi.lat,
-                'lon': obj_skpdi.lon,
-                'collision_type': obj_skpdi.skpdicollisiontypecollision_set.all().first().skpdi_collision_type.name
-            })
+            iconType = find_icon_type_skpdi(obj_skpdi)
+            if obj_skpdi.skpdicollisiontypecollision_set.count() > 0:
+                tmp_item.append({
+                    'id_ver': col['id'],
+                    'id_stat': '',
+                    'id_skpdi': col['skpdi_id'],
+                    'iconType': iconType,
+                    'lat': obj_skpdi.lat,
+                    'lon': obj_skpdi.lon,
+                    'collision_type': obj_skpdi.skpdicollisiontypecollision_set.first().skpdi_collision_type.name,
+                    'date': time.mktime(obj_skpdi.collision_date.timetuple())
+                })
         else:
             obj_stat = StatGibddDtpCard.objects.filter(sid=col['stat_gibdd_id']).first()
-            iconType = find_icon_type_stat(obj_stat),
+            iconType = find_icon_type_stat(obj_stat)
             tmp_item.append({
                 'id_ver': col['id'],
                 'id_stat': col['stat_gibdd_id'],
                 'id_skpdi': col['skpdi_id'],
-                'iconType': iconType[0],
+                'iconType': iconType,
                 'lat': obj_stat.lat,
                 'lon': obj_stat.lon,
-                'collision_type': obj_stat.dtvp
+                'collision_type': obj_stat.dtvp,
+                'date': time.mktime(obj_stat.dtp_date.timetuple())
             })
 
     with open('media/json_col.json', 'w') as outfile:
         json.dump(list(tmp_item), outfile)
 
+
 # Главная функция скрипта
 if __name__ == '__main__':
     print('start')
-
-    # Запись в файл JSON Выборки коллизий SKPDI и STAT_GIPDD
-    create_json_col_for_map()
-
-    exit()
     # Фиксация времени начал скрипта
     start_time = time.time()
     # Установка начале очереди
