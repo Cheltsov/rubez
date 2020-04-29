@@ -73,6 +73,15 @@ class HearthCollision(models.Model):
         db_table = 'hearth_collision'
 
 
+class HearthCollisionTmp(models.Model):
+    hid = models.ForeignKey('HearthDtpTmp', models.DO_NOTHING, db_column='hid', blank=True, null=True)
+    cid = models.ForeignKey(AllDtpCard, models.DO_NOTHING, db_column='cid', blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_collision_tmp'
+
+
 class HearthDtp(models.Model):
     created = models.DateTimeField(blank=True, null=True)
     year = models.IntegerField(blank=True, null=True)
@@ -92,10 +101,24 @@ class HearthDtpDis(models.Model):
     month = models.IntegerField(blank=True, null=True)
     icon_type = models.IntegerField(blank=True, null=True)
     num_dtp = models.CharField(max_length=1000, blank=True, null=True)
+    id_first_dtp = models.IntegerField(blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'hearth_dtp_dis'
+
+
+class HearthDtpTmp(models.Model):
+    create = models.DateTimeField(blank=True, null=True)
+    year = models.IntegerField(blank=True, null=True)
+    quarter = models.IntegerField(blank=True, null=True)
+    month = models.IntegerField(blank=True, null=True)
+    type = models.IntegerField(blank=True, null=True)
+    count_dtp = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_dtp_tmp'
 
 
 class HearthTmpDtp(models.Model):

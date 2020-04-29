@@ -11,7 +11,7 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'rudez.settings')
 django.setup()
 
-from codewrite.models import CollisionRange, HearthCollision, HearthDtp, AllDtpCard, HearthTmpDtp, HearthDtpDis
+from codewrite.models import CollisionRange, HearthCollision, HearthDtp, AllDtpCard, HearthTmpDtp, HearthDtpDis, HearthDtpTmp, HearthCollisionTmp
 
 
 def find_intersection(l1, l2, param):
@@ -74,105 +74,6 @@ def arr_collistion_type(item):
     return tmp[item]
 
 
-def concat_hearth01(foci_list):
-    foci_list_new = []
-    i = 0
-    for item_foci_1 in foci_list:
-        # Получение первого списка ДТП
-        tmp_1 = item_foci_1['list']
-        # Сортировка первого списка ДТП
-        t_1 = sorted(tmp_1, key=lambda x: x['id'])
-        j = 0
-        for item_foci_2 in foci_list:
-            # Получение второго списка ДТП
-            tmp_2 = item_foci_2['list']
-            # Сортировка второго списка ДТП
-            t_2 = sorted(tmp_2, key=lambda x: x['id'])
-            if len(find_intersection(t_1, t_2, 'id')) > 0 and \
-                    item_foci_1['year'] == item_foci_2['year'] and \
-                    item_foci_1['quarter'] == item_foci_2['quarter'] and \
-                    arr_collistion_type(item_foci_1['icon_type']) == arr_collistion_type(item_foci_2['icon_type']) and \
-                    i != j:
-                # Объединение массивов
-                tmp = t_1 + t_2
-                # Удаление дубликатов
-                url_by_dict = {i['id']: i for i in tmp}
-                new_items_list_dtp = list(url_by_dict.values())
-                sort_list = sorted(new_items_list_dtp, key=lambda x: x['id'])
-
-                if len(foci_list_new) == 0:
-                    print('000')
-                    foci_list_new = [{
-                        'list': sort_list,
-                        'year': item_foci_1['year'],
-                        'month': item_foci_1['month'],
-                        'quarter': item_foci_1['quarter'],
-                        'icon_type': item_foci_1['icon_type']
-                    }]
-                    with open('media/json_concat_hearth_02.json', 'w') as outfile:
-                        outfile.write("\n")
-                        json.dump(list(foci_list_new), outfile)
-                else:
-                    for f_new in foci_list_new:
-                        if len(find_intersection(f_new['list'], sort_list, 'id')) == 0:
-                            foci_list_new = [{
-                                'list': sort_list,
-                                'year': item_foci_1['year'],
-                                'month': item_foci_1['month'],
-                                'quarter': item_foci_1['quarter'],
-                                'icon_type': item_foci_1['icon_type']
-                            }]
-                            with open('media/json_concat_hearth_02.json', 'a') as outfile:
-                                outfile.write("\n")
-                                json.dump(list(foci_list_new), outfile)
-
-                # print(t_1)
-                # print(t_2)
-                # print(sort_list)
-                # print("+++++")
-
-                # with open('media/tmp_sort.json', 'a') as outfile:
-                #     outfile.write(str(t_1)+"\n")
-                #     outfile.write(str(t_2)+"\n")
-                #     outfile.write(str(sort_list)+"\n")
-                #     outfile.write("+++++"+"\n")
-
-            j += 1
-        i += 1
-
-    exit()
-    del foci_list
-
-    new_foci_dtp = []
-    for item1 in foci_list_new:
-        for item12 in foci_list_new:
-            # print(item1['list'])
-            # print(item12['list'])
-            # print("-----")
-            # print(len(find_intersection(item1['list'], item12['list'], 'id')))
-            # print("+++")
-            # exit()
-            if (len(item1['list']) > 2 and len(item1['list']) > 2) and len(
-                    find_intersection(item1['list'], item12['list'], 'id')) > 0:
-                print(item1['list'])
-                print(item12['list'])
-                print("----")
-                new_foci_dtp.append({
-                    'list': item1['list'],
-                    'year': item1['year'],
-                    'month': item1['month'],
-                    'quarter': item1['quarter'],
-                    'icon_type': item1['icon_type']
-                })
-                foci_list_new.remove(item12)
-    with open('media/json_concat_hearth_05.json', 'w') as outfile:
-        json.dump(list(new_foci_dtp), outfile)
-    print(len(new_foci_dtp))
-
-    exit()
-    return new_foci_dtp
-
-
 def concat_hearth(foci_list):
     foci_list_new = []
     list_t = []
@@ -182,7 +83,7 @@ def concat_hearth(foci_list):
         for item_foci_2 in foci_list:
             # Получение второго списка ДТП
             tmp_2 = item_foci_2['list']
-
+            tmp = '||'.join(str(x) for x in tmp_1)
             if item_foci_1['id'] != item_foci_2['id'] and len(find_intersection_not_param(tmp_1, tmp_2)) > 0 and \
                     item_foci_1['year'] == item_foci_2['year'] and \
                     item_foci_1['quarter'] == item_foci_2['quarter'] and \
@@ -194,29 +95,24 @@ def concat_hearth(foci_list):
                 url_by_dict = {i: i for i in tmp}
                 new_items_list_dtp = list(url_by_dict.values())
                 sort_list = sorted(new_items_list_dtp, key=lambda x: x)
-
                 tmp = '||'.join(str(x) for x in sort_list)
-                list_t.append(HearthTmpDtp(year=item_foci_1['year'], month=item_foci_1['month'],
-                                                          quarter=item_foci_1['quarter'],
-                                                          icon_type=item_foci_1['icon_type'],
-                                                          num_dtp=tmp))
-            else:
-                tmp = '||'.join(str(x) for x in tmp_1)
-                list_t.append(HearthTmpDtp(year=item_foci_1['year'], month=item_foci_1['month'],
-                                           quarter=item_foci_1['quarter'],
-                                           icon_type=item_foci_1['icon_type'],
-                                           num_dtp=tmp))
 
+            list_t.append(HearthTmpDtp(year=item_foci_1['year'], month=item_foci_1['month'],
+                                       quarter=item_foci_1['quarter'],
+                                       icon_type=item_foci_1['icon_type'],
+                                       num_dtp=tmp))
 
     HearthTmpDtp.objects.all().delete()
     HearthTmpDtp.objects.bulk_create(list_t)
-    tmp_list = HearthTmpDtp.objects.all().distinct('num_dtp')
+    tmp_list = HearthTmpDtp.objects.all().distinct('num_dtp').values()
     list_dis = []
     for item in tmp_list:
-        list_dis.append(HearthDtpDis(year=item.year, month=item.month,
-                                     quarter=item.quarter, icon_type=item.icon_type, num_dtp=item.num_dtp))
+        first_id = item['num_dtp'].split("||")[0]
+        list_dis.append(HearthDtpDis(year=item['year'], month=item['month'],
+                                     quarter=item['quarter'], icon_type=item['icon_type'], num_dtp=item['num_dtp'],
+                                     id_first_dtp=first_id))
     HearthDtpDis.objects.all().delete()
-    HearthDtpDis.objects.bulk_create(tmp_list)
+    HearthDtpDis.objects.bulk_create(list_dis)
     HearthTmpDtp.objects.all().delete()
     return True
 
@@ -259,10 +155,44 @@ def turn_hearth():
         list_dis.append(HearthDtpDis(year=item.year, month=item.month,
                                      quarter=item.quarter, icon_type=item.icon_type, num_dtp=item.num_dtp))
     HearthDtpDis.objects.all().delete()
-    HearthDtpDis.objects.bulk_create(tmp_list)
+    HearthDtpDis.objects.bulk_create(list_dis)
     HearthTmpDtp.objects.all().delete()
     return True
 
+
+def last_interation_duplicate():
+    list_dtp_foci = HearthDtpDis.objects.all().order_by('id_first_dtp').values()
+    list_dtp_foci = list(list_dtp_foci)
+    for i in range(len(list_dtp_foci)):
+        if i+1 < len(list_dtp_foci):
+            if list_dtp_foci[i]['id_first_dtp'] == list_dtp_foci[i+1]['id_first_dtp']:
+                count_list_1 = len(list_dtp_foci[i]['num_dtp'].split("||"))
+                count_list_2 = len(list_dtp_foci[i+1]['num_dtp'].split("||"))
+                if count_list_1 < count_list_2:
+                    del list_dtp_foci[i]
+                if count_list_1 > count_list_2:
+                    del list_dtp_foci[i+1]
+
+    list_collision_hearth = []
+    for item_foci in list_dtp_foci:
+        now = timezone.now()
+        # Создание объекта
+        list_dtp = item_foci['num_dtp'].split("||")
+        hearth = HearthDtpTmp.objects.create(year=item_foci['year'], month=item_foci['month'],
+                                             quarter=item_foci['quarter'], create=now,
+                                             count_dtp=len(list_dtp), type=item_foci['icon_type'])
+        hearth.save()
+        for id_nested_dtp in list_dtp:
+            if AllDtpCard.objects.filter(id=id_nested_dtp):
+                cr_obj = AllDtpCard.objects.get(id=id_nested_dtp)
+                list_collision_hearth.append(HearthCollisionTmp(hid=hearth, cid=cr_obj))
+            else:
+                print('error')
+                print(id_nested_dtp)
+                exit()
+    HearthCollisionTmp.objects.bulk_create(list_collision_hearth)
+    print("Готово")
+    exit()
 
 
 # Создание записи Очага и получение списка связи Hearth и Dtp
@@ -292,6 +222,10 @@ def get_list_heath(list_dtp):
 # Главная функция скрипта
 if __name__ == '__main__':
     print('start')
+
+    last_interation_duplicate()
+    exit()
+
     if turn_hearth():
         tmp_list = []
         list_dtp_foci = HearthDtpDis.objects.all().distinct('num_dtp').values()
