@@ -86,6 +86,30 @@ class HearthDtp(models.Model):
         db_table = 'hearth_dtp'
 
 
+class HearthDtpDis(models.Model):
+    year = models.IntegerField(blank=True, null=True)
+    quarter = models.IntegerField(blank=True, null=True)
+    month = models.IntegerField(blank=True, null=True)
+    icon_type = models.IntegerField(blank=True, null=True)
+    num_dtp = models.CharField(max_length=1000, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_dtp_dis'
+
+
+class HearthTmpDtp(models.Model):
+    year = models.IntegerField(blank=True, null=True)
+    quarter = models.IntegerField(blank=True, null=True)
+    month = models.IntegerField(blank=True, null=True)
+    num_dtp = models.CharField(max_length=1000, blank=True, null=True)
+    icon_type = models.IntegerField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'hearth_tmp_dtp'
+
+
 class Line(models.Model):
     coords = models.TextField(blank=True, null=True)  # This field type is a guess.
     lon = models.FloatField(blank=True, null=True)
