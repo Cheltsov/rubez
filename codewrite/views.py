@@ -3,7 +3,7 @@ from itertools import count
 
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse, Http404
-from codewrite.models import SkpdiDtpCard, StatGibddDtpCard, HearthCollision, HearthDtp, AllDtpCard
+from codewrite.models import SkpdiDtpCard, StatGibddDtpCard, HearthCollision, HearthDtp, AllDtpCard, HearthDtpTmp, HearthCollisionTmp
 
 from django.core.serializers import serialize
 
@@ -192,6 +192,98 @@ def create_list_heath(hearth_list):
         count_stricken = 0
         count_lost = 0
         list_dtp_collision = item.hearthcollision_set.all()
+        for item_col in list_dtp_collision:
+            dtp = item_col.cid
+            tmp = dtp.stat_gibdd
+            if dtp.skpdi_id and dtp.stat_gibdd_id:
+                if dtp.stat_gibdd.pog == 1:
+                    count_lost += 1
+                elif dtp.stat_gibdd.ran == 1:
+                    count_stricken += 1
+                list_dtp.append({
+                    'id': dtp.id,
+                    'id_skpdi': dtp.skpdi_id,
+                    'id_stat': dtp.stat_gibdd_id,
+                    'date': str(dtp.stat_gibdd.dtp_date),
+                    'coords': {
+                        'lat': dtp.stat_gibdd.lat,
+                        'lon': dtp.stat_gibdd.lon
+                    }
+                })
+            elif dtp.skpdi_id:
+                dead_type = dtp.skpdi.skpdiuch_set.first().collision_party_cond_id
+                if dead_type == 216599770:
+                    count_stricken += 1
+                else:
+                    count_lost += 1
+                list_dtp.append({
+                    'id': dtp.id,
+                    'id_skpdi': dtp.skpdi_id,
+                    'id_stat': '',
+                    'date': str(dtp.skpdi.collision_date),
+                    'coords': {
+                        'lat': dtp.skpdi.lat,
+                        'lon': dtp.skpdi.lon
+                    }
+                })
+            else:
+                if dtp.stat_gibdd.pog == 1:
+                    count_lost += 1
+                elif dtp.stat_gibdd.ran == 1:
+                    count_stricken += 1
+                list_dtp.append({
+                    'id': dtp.id,
+                    'id_skpdi': '',
+                    'id_stat': dtp.stat_gibdd_id,
+                    'date': str(dtp.stat_gibdd.dtp_date),
+                    'coords': {
+                        'lat': dtp.stat_gibdd.lat,
+                        'lon': dtp.stat_gibdd.lon
+                    }
+                })
+
+        list_hearth_json.append({
+            'id': item.id,
+            'count_dtp': item.count_dtp,
+            'quarter': item.quarter,
+            'icon_type': item.type,
+            'count_stricken': count_stricken,
+            'count_lost': count_lost,
+            'list_dtp': list_dtp
+        })
+    response = json.dumps(list_hearth_json)
+    return response
+
+
+def get_hearth_tmp(request):
+    start_time = time.time()
+    if request.GET:
+        if request.GET.get('year') and request.GET.get('quarter'):
+            year_page = request.GET['year']
+            quarter_page = request.GET['quarter']
+            hearth_list = HearthDtpTmp.objects.filter(year=year_page, quarter=quarter_page)
+            response = create_list_heath_tmp(hearth_list)
+            print("--- %s seconds ---" % (time.time() - start_time))
+            return HttpResponse(response)
+        elif request.GET.get('year'):
+            year_page = request.GET['year']
+            hearth_list = HearthDtpTmp.objects.filter(year=year_page)
+            response = create_list_heath(hearth_list)
+            print("--- %s seconds ---" % (time.time() - start_time))
+            return HttpResponse(response)
+        else:
+            raise Http404('Invalid parameters')
+    else:
+        raise Http404('Object not found')
+
+
+def create_list_heath_tmp(hearth_list):
+    list_hearth_json = []
+    for item in hearth_list:
+        list_dtp = []
+        count_stricken = 0
+        count_lost = 0
+        list_dtp_collision = item.hearthcollisiontmp_set.all()
         for item_col in list_dtp_collision:
             dtp = item_col.cid
             tmp = dtp.stat_gibdd

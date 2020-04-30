@@ -14,40 +14,45 @@ django.setup()
 from codewrite.models import CollisionRange, HearthCollision, HearthDtp, AllDtpCard, HearthTmpDtp, HearthDtpDis, HearthDtpTmp, HearthCollisionTmp
 
 
-def find_intersection(l1, l2, param):
-    out = []
-    i1 = 0
-    i2 = 0
-    while (i1 < len(l1)) and (i2 < len(l2)):
-        if l1[i1][param] > l2[i2][param]:
-            i2 += 1
-        elif l1[i1][param] < l2[i2][param]:
-            i1 += 1
-        else:  # l1[i1] == l2[i2]
-            out.append(l1[i1])
-            i1 += 1
-            i2 += 1
-    return out
-
-
-def find_intersection_not_param(l1, l2):
-    out = []
-    i1 = 0
-    i2 = 0
-    while (i1 < len(l1)) and (i2 < len(l2)):
-        if l1[i1] > l2[i2]:
-            i2 += 1
-        elif l1[i1] < l2[i2]:
-            i1 += 1
-        else:  # l1[i1] == l2[i2]
-            out.append(l1[i1])
-            i1 += 1
-            i2 += 1
-    return out
+# Вывод спика цепочек очагов
+def turn_hearth():
+    # Получение всех записей ДТП которые сравнивали по дистанции
+    col_range = CollisionRange.objects.all().order_by('id_collision_1')
+    list_collision_hearth = []
+    # Сериализация списка очагов и запись во временную таблицу
+    for item_first in col_range:
+        tmp_sec = []
+        for item_second in col_range:
+            if item_first.id_collision_1 == item_second.id_collision_1 and \
+                    arr_collistion_type(item_first.icon_type) == arr_collistion_type(item_second.icon_type):
+                tmp_sec.append({
+                    'id': item_second.id_collision_2
+                })
+        # Добавление первого элемента к остальному списку
+        tmp_sec.append({
+            'id': item_first.id_collision_1
+        })
+        # Переписвание вложенного списка без дубликатов
+        col_by_dict = {i['id']: i for i in tmp_sec}
+        new_items_list = list(col_by_dict.values())
+        # Сортировка по возрастанию
+        sort_list = sorted(new_items_list, key=lambda x: x['id'])
+        # Если ДТП в очаге больше 2
+        if len(sort_list) > 2:
+            # Формируем строку из элементов списка
+            tmp = '||'.join(str(x['id']) for x in sort_list)
+            # Создаем объект типа HearthTmpDtp
+            list_collision_hearth.append(HearthTmpDtp(year=item_first.dtp_year, month=item_first.dtp_month,
+                                                      quarter=item_first.dtp_quarter, icon_type=item_first.icon_type,
+                                                      num_dtp=tmp))
+    if rewrite_not_duplicate(list_collision_hearth, False):
+        return True
+    else:
+        return False
 
 
 # Функция получения значения по iconType
-def arr_collistion_type(item):
+def arr_collistion_type(id_item):
     tmp = {
         0: '',
         1: "Столкновение",
@@ -71,11 +76,42 @@ def arr_collistion_type(item):
         19: "Очаг с погибими",
         20: "Очаг с погибими"
     }
-    return tmp[item]
+    return tmp[id_item]
 
 
+# Перезапись очагов без дубликатов
+def rewrite_not_duplicate(list_request, first_id_if):
+    # Очищаем прошлые записи
+    HearthTmpDtp.objects.all().delete()
+    # Добавляем объекты в таблицу
+    HearthTmpDtp.objects.bulk_create(list_request)
+    # Получаем элементы из временной таблицы без дубликатов
+    tmp_list_hearth = HearthTmpDtp.objects.all().distinct('num_dtp').values()
+    list_dis = []
+    # Если нужно добавить id первого элемента ДТП в поле (для сортировки)
+    if first_id_if:
+        for item_hearth in tmp_list_hearth:
+            # Получение первого id из списка ДТП очагов
+            first_id = item_hearth['num_dtp'].split("||")[0]
+            list_dis.append(HearthDtpDis(year=item_hearth['year'], month=item_hearth['month'],
+                                         quarter=item_hearth['quarter'], icon_type=item_hearth['icon_type'],
+                                         num_dtp=item_hearth['num_dtp'], id_first_dtp=first_id))
+    else:
+        for item_hearth in tmp_list_hearth:
+            list_dis.append(HearthDtpDis(year=item_hearth['year'], month=item_hearth['month'],
+                                         quarter=item_hearth['quarter'], icon_type=item_hearth['icon_type'],
+                                         num_dtp=item_hearth['num_dtp']))
+    # Очистка таблицы в которую произайдет запись
+    HearthDtpDis.objects.all().delete()
+    # Запись в другую таблицу
+    HearthDtpDis.objects.bulk_create(list_dis)
+    # Очистка временной таблицы
+    HearthTmpDtp.objects.all().delete()
+    return True
+
+
+# Склеиавние ДПТ очагов
 def concat_hearth(foci_list):
-    foci_list_new = []
     list_t = []
     for item_foci_1 in foci_list:
         # Получение первого списка ДТП
@@ -83,98 +119,52 @@ def concat_hearth(foci_list):
         for item_foci_2 in foci_list:
             # Получение второго списка ДТП
             tmp_2 = item_foci_2['list']
+            # Из списка сделать строку добавив разделитель
             tmp = '||'.join(str(x) for x in tmp_1)
+            # Если id очага разный и есть хоть один повторяющийся элемент, однаковый год|месяц|тип нарушения
             if item_foci_1['id'] != item_foci_2['id'] and len(find_intersection_not_param(tmp_1, tmp_2)) > 0 and \
                     item_foci_1['year'] == item_foci_2['year'] and \
                     item_foci_1['quarter'] == item_foci_2['quarter'] and \
                     arr_collistion_type(item_foci_1['icon_type']) == arr_collistion_type(item_foci_2['icon_type']):
-
-                # Объединение массивов
+                # Склеивание ДТП
                 tmp = tmp_1 + tmp_2
                 # Удаление дубликатов
                 url_by_dict = {i: i for i in tmp}
                 new_items_list_dtp = list(url_by_dict.values())
+                # Сортировка по возрастанию
                 sort_list = sorted(new_items_list_dtp, key=lambda x: x)
+                # Из списка сделать строку с добавлением разделителя
                 tmp = '||'.join(str(x) for x in sort_list)
-
+            # Создание обхектов типа HearthTmpDtp для добавление в таблицу
             list_t.append(HearthTmpDtp(year=item_foci_1['year'], month=item_foci_1['month'],
                                        quarter=item_foci_1['quarter'],
                                        icon_type=item_foci_1['icon_type'],
                                        num_dtp=tmp))
-
-    HearthTmpDtp.objects.all().delete()
-    HearthTmpDtp.objects.bulk_create(list_t)
-    tmp_list = HearthTmpDtp.objects.all().distinct('num_dtp').values()
-    list_dis = []
-    for item in tmp_list:
-        first_id = item['num_dtp'].split("||")[0]
-        list_dis.append(HearthDtpDis(year=item['year'], month=item['month'],
-                                     quarter=item['quarter'], icon_type=item['icon_type'], num_dtp=item['num_dtp'],
-                                     id_first_dtp=first_id))
-    HearthDtpDis.objects.all().delete()
-    HearthDtpDis.objects.bulk_create(list_dis)
-    HearthTmpDtp.objects.all().delete()
-    return True
+    # Удаление дубликатов
+    if rewrite_not_duplicate(list_t, True):
+        return True
+    else:
+        return False
 
 
-# Вывод спика цепочек очагов
-def turn_hearth():
-    # Получение всех записей дпт которые сравнивали по дистанции
-    col_range = CollisionRange.objects.all().order_by('id_collision_1')
-    foci_list = []
-    list_collision_hearth = []
-    # Сериализация списка очагов
-    for item_first in col_range:
-        tmp_sec = []
-        for item_second in col_range:
-            if item_first.id_collision_1 == item_second.id_collision_1 and \
-                    arr_collistion_type(item_first.icon_type) == arr_collistion_type(item_second.icon_type):
-                tmp_sec.append({
-                    'id': item_second.id_collision_2
-                })
-        # Добавление первого элемента к остальному списку
-        tmp_sec.append({
-            'id': item_first.id_collision_1
-        })
-        # Переписвание вложенного списка без дубликатов
-        col_by_dict = {i['id']: i for i in tmp_sec}
-        new_items_list = list(col_by_dict.values())
-        # Сортировка по возрастанию
-        sort_list = sorted(new_items_list, key=lambda x: x['id'])
-        if len(sort_list) > 2:
-            tmp = '||'.join(str(x['id']) for x in sort_list)
-            list_collision_hearth.append(HearthTmpDtp(year=item_first.dtp_year, month=item_first.dtp_month,
-                                                      quarter=item_first.dtp_quarter, icon_type=item_first.icon_type,
-                                                      num_dtp=tmp))
-
-    HearthTmpDtp.objects.all().delete()
-    HearthTmpDtp.objects.bulk_create(list_collision_hearth)
-    tmp_list = HearthTmpDtp.objects.all().distinct('num_dtp')
-    list_dis = []
-    for item in tmp_list:
-        list_dis.append(HearthDtpDis(year=item.year, month=item.month,
-                                     quarter=item.quarter, icon_type=item.icon_type, num_dtp=item.num_dtp))
-    HearthDtpDis.objects.all().delete()
-    HearthDtpDis.objects.bulk_create(list_dis)
-    HearthTmpDtp.objects.all().delete()
-    return True
-
-
-def last_interation_duplicate():
-    list_dtp_foci = HearthDtpDis.objects.all().order_by('id_first_dtp').values()
-    list_dtp_foci = list(list_dtp_foci)
-    for i in range(len(list_dtp_foci)):
-        if i+1 < len(list_dtp_foci):
-            if list_dtp_foci[i]['id_first_dtp'] == list_dtp_foci[i+1]['id_first_dtp']:
-                count_list_1 = len(list_dtp_foci[i]['num_dtp'].split("||"))
-                count_list_2 = len(list_dtp_foci[i+1]['num_dtp'].split("||"))
+# Удаление дубликатов -- Добавление очагов и их ДТП
+def create_hearth():
+    # Получение временных очагов и их ДТП
+    list_dtp_tmp = HearthDtpDis.objects.all().order_by('id_first_dtp').values()
+    list_foci = list(list_dtp_tmp)
+    # Удаляем копии очагов с меньшим кол-вом ДТП
+    for i in range(len(list_foci)):
+        if i+1 < len(list_foci):
+            if list_foci[i]['id_first_dtp'] == list_foci[i+1]['id_first_dtp']:
+                count_list_1 = len(list_foci[i]['num_dtp'].split("||"))
+                count_list_2 = len(list_foci[i+1]['num_dtp'].split("||"))
                 if count_list_1 < count_list_2:
-                    del list_dtp_foci[i]
+                    del list_foci[i]
                 if count_list_1 > count_list_2:
-                    del list_dtp_foci[i+1]
-
+                    del list_foci[i+1]
+    # Запись в таблицу HearthDtp
     list_collision_hearth = []
-    for item_foci in list_dtp_foci:
+    for item_foci in list_foci:
         now = timezone.now()
         # Создание объекта
         list_dtp = item_foci['num_dtp'].split("||")
@@ -182,7 +172,9 @@ def last_interation_duplicate():
                                              quarter=item_foci['quarter'], create=now,
                                              count_dtp=len(list_dtp), type=item_foci['icon_type'])
         hearth.save()
+        # Добавление связки очага и его ДТП
         for id_nested_dtp in list_dtp:
+            # Есть нет ДТП по id
             if AllDtpCard.objects.filter(id=id_nested_dtp):
                 cr_obj = AllDtpCard.objects.get(id=id_nested_dtp)
                 list_collision_hearth.append(HearthCollisionTmp(hid=hearth, cid=cr_obj))
@@ -190,46 +182,62 @@ def last_interation_duplicate():
                 print('error')
                 print(id_nested_dtp)
                 exit()
+    # Добавление связки очаг-дтп
     HearthCollisionTmp.objects.bulk_create(list_collision_hearth)
-    print("Готово")
-    exit()
+    return True
 
 
-# Создание записи Очага и получение списка связи Hearth и Dtp
-def get_list_heath(list_dtp):
-    list_collision_hearth = []
-    log_error = []
-    for item_foci in list_dtp:
-        now = timezone.now()
-        # Если вложенных ДПТ больше 2 (начало учитывается)
-        if len(item_foci['list']) > 2:
-            # Создание объекта
-            hearth = HearthDtp.objects.create(year=item_foci['year'], month=item_foci['month'],
-                                              quarter=item_foci['quarter'], created=now,
-                                              count_dtp=len(item_foci['list']), type=item_foci['icon_type'])
-            hearth.save()
-            for item_nested_dtp in item_foci['list']:
-                if AllDtpCard.objects.filter(id=item_nested_dtp['id']):
-                    cr_obj = AllDtpCard.objects.get(id=item_nested_dtp['id'])
-                    list_collision_hearth.append(HearthCollision(hid=hearth, cid=cr_obj))
-                else:
-                    log_error.append({'id_dtp_all': item_nested_dtp['id']})
-    with open('media/json_error_log.json', 'w') as outfile:
-        json.dump(list(log_error), outfile)
-    return list_collision_hearth
+# Поиск по вхождению по параметру
+def find_intersection(l1, l2, param):
+    out = []
+    i1 = 0
+    i2 = 0
+    while (i1 < len(l1)) and (i2 < len(l2)):
+        if l1[i1][param] > l2[i2][param]:
+            i2 += 1
+        elif l1[i1][param] < l2[i2][param]:
+            i1 += 1
+        else:  # l1[i1] == l2[i2]
+            out.append(l1[i1])
+            i1 += 1
+            i2 += 1
+    return out
+
+
+# Поиск по вхождению без параметра
+def find_intersection_not_param(l1, l2):
+    out = []
+    i1 = 0
+    i2 = 0
+    while (i1 < len(l1)) and (i2 < len(l2)):
+        if l1[i1] > l2[i2]:
+            i2 += 1
+        elif l1[i1] < l2[i2]:
+            i1 += 1
+        else:  # l1[i1] == l2[i2]
+            out.append(l1[i1])
+            i1 += 1
+            i2 += 1
+    return out
 
 
 # Главная функция скрипта
 if __name__ == '__main__':
     print('start')
-
-    last_interation_duplicate()
-    exit()
-
+    # Фиксация времени начал скрипта
+    start_time = time.time()
+    # Очистка таблицы HearthCollision
+    HearthCollision.objects.all().delete()
+    # Очистка таблицы HearthDtp
+    HearthDtp.objects.all().delete()
+    # Записываем временные очаги во временную таблицу
     if turn_hearth():
         tmp_list = []
+        # Получаем очаги без дубликатов
         list_dtp_foci = HearthDtpDis.objects.all().distinct('num_dtp').values()
+        # Сериализация объектов очагов
         for item in list_dtp_foci:
+            # Из одной строки делаем список по разделителю
             mylist = [int(x) for x in item['num_dtp'].split('||')]
             tmp_list.append({
                 'id': item['id'],
@@ -239,28 +247,16 @@ if __name__ == '__main__':
                 'quarter': item['quarter'],
                 'icon_type': item['icon_type'],
             })
-        # Слеивание дпт очага
+        # Слеивание ДТП очагов
         if concat_hearth(tmp_list):
-            print('000')
-            exit()
-
-
-
-    # tmp = HearthTmpDtp.objects.all().distinct('num_dtp').order_by('num_dtp').values()
-    # for i in tmp:
-    #     print(i)
-
-    # Фиксация времени начал скрипта
-    start_time = time.time()
-    # Очистка таблицы HearthCollision
-    HearthCollision.objects.all().delete()
-    # Очистка таблицы HearthDtp
-    HearthDtp.objects.all().delete()
-    # Вывод Дпт Очагов
-    new_foci = turn_hearth()
-    # Получение списка связи Hearth и Dtp и создание Hearth
-    list_collision_hearth = get_list_heath(new_foci)
-    # Создание связи очага и ДПТ
-    HearthCollision.objects.bulk_create(list_collision_hearth)
-    print("--- %s seconds ---" % (time.time() - start_time))
-    print('end')
+            # Из временной таблицы записываем очаги
+            if create_hearth():
+                print("--- %s seconds ---" % (time.time() - start_time))
+                print('end')
+                exit()
+            else:
+                print('Ошибка при записи очагов')
+        else:
+            print('Ошибка при склеивании очагов')
+    else:
+        print('Ошибка при создании предполагаемых очагов')
