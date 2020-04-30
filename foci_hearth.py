@@ -5,6 +5,7 @@ import json
 from builtins import print
 
 from django.utils import timezone
+from django.db import connection
 
 import django
 
@@ -91,9 +92,10 @@ def rewrite_not_duplicate(list_request, first_id_if):
         for item_hearth in tmp_list_hearth:
             # Получение первого id из списка ДТП очагов
             first_id = item_hearth['num_dtp'].split("||")[0]
+            last_id = item_hearth['num_dtp'].split("||")[-1]
             list_dis.append(HearthDtpDis(year=item_hearth['year'], month=item_hearth['month'],
                                          quarter=item_hearth['quarter'], icon_type=item_hearth['icon_type'],
-                                         num_dtp=item_hearth['num_dtp'], id_first_dtp=first_id))
+                                         num_dtp=item_hearth['num_dtp'], id_first_dtp=first_id, id_last_dtp=last_id))
     else:
         for item_hearth in tmp_list_hearth:
             list_dis.append(HearthDtpDis(year=item_hearth['year'], month=item_hearth['month'],
@@ -109,7 +111,23 @@ def rewrite_not_duplicate(list_request, first_id_if):
 
 
 # Склеиавние ДПТ очагов
-def concat_hearth(foci_list):
+def concat_hearth():
+    tmp_list = []
+    # Получаем очаги без дубликатов
+    list_dtp_foci = HearthDtpDis.objects.all().distinct('num_dtp').values()
+    # Сериализация объектов очагов
+    for item in list_dtp_foci:
+        # Из одной строки делаем список по разделителю
+        mylist = [int(x) for x in item['num_dtp'].split('||')]
+        tmp_list.append({
+            'id': item['id'],
+            'list': mylist,
+            'year': item['year'],
+            'month': item['month'],
+            'quarter': item['quarter'],
+            'icon_type': item['icon_type'],
+        })
+    foci_list = tmp_list
     list_t = []
     for item_foci_1 in foci_list:
         # Получение первого списка ДТП
@@ -146,20 +164,62 @@ def concat_hearth(foci_list):
 
 
 # Удаление дубликатов -- Добавление очагов и их ДТП
+def delete_duplicate():
+    list_for_del = []
+    # Удаление дубликатов сортировка по первому элементу
+    with connection.cursor() as cursor:
+        cursor.execute("select distinct(id_first_dtp) id_dtp, count(id_first_dtp) count_dtp from dtp_global_stat.hearth_dtp_dis \
+                        group by id_first_dtp \
+                        having count(id_first_dtp) > 1 \
+                        order by id_first_dtp")
+        list_dic_count = cursor.fetchall()
+    if list_dic_count:
+        for item_dtp in list_dic_count:
+            first_id_dtp = item_dtp[0]
+            count_dtp = item_dtp[1]
+            if count_dtp > 1:
+                current_list_by_id = HearthDtpDis.objects.filter(id_first_dtp=first_id_dtp).order_by('-num_dtp').values()
+                maximum = 0
+                for item1 in current_list_by_id:
+                    if len(current_list_by_id) > 1:
+                        count_list_1 = len(item1['num_dtp'].split("||"))
+                        if maximum < count_list_1:
+                            maximum = count_list_1
+                        else:
+                            list_for_del.append(item1['id'])
+
+    # Удаление дубликатов сортировка по первому элементу
+    with connection.cursor() as cursor:
+        cursor.execute("select distinct(id_last_dtp) id_dtp, count(id_last_dtp) count_dtp from dtp_global_stat.hearth_dtp_dis \
+                        group by id_last_dtp \
+                        having count(id_last_dtp) > 1 \
+                        order by id_last_dtp")
+        list_dic_count = cursor.fetchall()
+    if list_dic_count:
+        for item_dtp in list_dic_count:
+            last_id_dtp = item_dtp[0]
+            count_dtp = item_dtp[1]
+            if count_dtp > 1:
+                current_list_by_id = HearthDtpDis.objects.filter(id_last_dtp=last_id_dtp).order_by('-num_dtp').values()
+                maximum = 0
+                for item1 in current_list_by_id:
+                    if len(current_list_by_id) > 1:
+                        count_list_1 = len(item1['num_dtp'].split("||"))
+                        if maximum < count_list_1:
+                            maximum = count_list_1
+                        else:
+                            list_for_del.append(item1['id'])
+
+    for item_id_del in list_for_del:
+        HearthDtpDis.objects.filter(id=item_id_del).delete()
+    return True
+
+
 def create_hearth():
     # Получение временных очагов и их ДТП
-    list_dtp_tmp = HearthDtpDis.objects.all().order_by('id_first_dtp').values()
+    list_dtp_tmp = HearthDtpDis.objects.all().order_by('id_first_dtp', 'id').values()
     list_foci = list(list_dtp_tmp)
-    # Удаляем копии очагов с меньшим кол-вом ДТП
-    for i in range(len(list_foci)):
-        if i+1 < len(list_foci):
-            if list_foci[i]['id_first_dtp'] == list_foci[i+1]['id_first_dtp']:
-                count_list_1 = len(list_foci[i]['num_dtp'].split("||"))
-                count_list_2 = len(list_foci[i+1]['num_dtp'].split("||"))
-                if count_list_1 < count_list_2:
-                    del list_foci[i]
-                if count_list_1 > count_list_2:
-                    del list_foci[i+1]
+
     # Запись в таблицу HearthDtp
     list_collision_hearth = []
     for item_foci in list_foci:
@@ -222,38 +282,37 @@ def find_intersection_not_param(l1, l2):
 # Главная функция скрипта
 if __name__ == '__main__':
     print('start')
+
     # Фиксация времени начал скрипта
     start_time = time.time()
     # Очистка таблицы HearthCollision
-    HearthCollision.objects.all().delete()
+    HearthCollisionTmp.objects.all().delete()
     # Очистка таблицы HearthDtp
-    HearthDtp.objects.all().delete()
+    HearthDtpTmp.objects.all().delete()
     # Записываем временные очаги во временную таблицу
     if turn_hearth():
-        tmp_list = []
-        # Получаем очаги без дубликатов
-        list_dtp_foci = HearthDtpDis.objects.all().distinct('num_dtp').values()
-        # Сериализация объектов очагов
-        for item in list_dtp_foci:
-            # Из одной строки делаем список по разделителю
-            mylist = [int(x) for x in item['num_dtp'].split('||')]
-            tmp_list.append({
-                'id': item['id'],
-                'list': mylist,
-                'year': item['year'],
-                'month': item['month'],
-                'quarter': item['quarter'],
-                'icon_type': item['icon_type'],
-            })
         # Слеивание ДТП очагов
-        if concat_hearth(tmp_list):
+        if concat_hearth():
             # Из временной таблицы записываем очаги
-            if create_hearth():
-                print("--- %s seconds ---" % (time.time() - start_time))
-                print('end')
-                exit()
+            if delete_duplicate():
+
+                # Слеивание ДТП очагов
+                if concat_hearth():
+                    # Из временной таблицы записываем очаги
+                    if delete_duplicate():
+
+                        if create_hearth():
+                            print("--- %s seconds ---" % (time.time() - start_time))
+                            print('end')
+                            exit()
+                        else:
+                            print('Ошибка при записи очагов 2')
+                    else:
+                        print('Ошибка при удалении дублей 2')
+                else:
+                    print('Ошибка при склеивании очагов 2')
             else:
-                print('Ошибка при записи очагов')
+                print('Ошибка при удалении дублей')
         else:
             print('Ошибка при склеивании очагов')
     else:

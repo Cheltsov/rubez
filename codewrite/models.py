@@ -102,6 +102,7 @@ class HearthDtpDis(models.Model):
     icon_type = models.IntegerField(blank=True, null=True)
     num_dtp = models.CharField(max_length=1000, blank=True, null=True)
     id_first_dtp = models.IntegerField(blank=True, null=True)
+    id_last_dtp = models.IntegerField(blank=True, null=True)
 
     class Meta:
         managed = False
